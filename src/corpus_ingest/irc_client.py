@@ -7,7 +7,7 @@ import socket
 import ssl
 import time
 from collections.abc import Callable, Iterator
-from typing import Any
+from typing import Self
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +78,11 @@ class IrcClient:
                 pass
             self._sock = None
 
-    def __enter__(self) -> IrcClient:
+    def __enter__(self) -> Self:
         self.connect()
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
     def send_raw(self, line: str) -> None:

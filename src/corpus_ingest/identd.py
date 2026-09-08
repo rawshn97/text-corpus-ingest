@@ -6,6 +6,7 @@ import logging
 import socket
 import threading
 from types import TracebackType
+from typing import Self
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class IdentDaemon:
             self._thread.join(timeout=2.0)
             self._thread = None
 
-    def __enter__(self) -> IdentDaemon:
+    def __enter__(self) -> Self:
         self.start()
         return self
 

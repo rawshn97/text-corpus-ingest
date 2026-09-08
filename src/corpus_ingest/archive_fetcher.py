@@ -22,7 +22,14 @@ import threading
 import time
 from pathlib import Path
 
-from corpus_ingest.config import AppConfig, IdentityConfig, NetworkConfig, SearchConfig, ServerConfig, load_config
+from corpus_ingest.config import (
+    AppConfig,
+    IdentityConfig,
+    NetworkConfig,
+    SearchConfig,
+    ServerConfig,
+    load_config,
+)
 from corpus_ingest.dcc import DccSendOffer, parse_dcc_send, receive_dcc_send
 from corpus_ingest.identd import IdentDaemon
 from corpus_ingest.irc_client import IrcClient
@@ -54,9 +61,7 @@ def format_search_command(template: str, query: str) -> str:
     try:
         return template.format(query=query)
     except (KeyError, ValueError) as exc:
-        raise ValueError(
-            f"invalid search.command_template {template!r}: {exc}"
-        ) from exc
+        raise ValueError(f"invalid search.command_template {template!r}: {exc}") from exc
 
 
 def resolve_filename_hint(
@@ -122,15 +127,9 @@ class ArchiveFetcher:
         )
         hint = resolve_filename_hint(
             query.strip(),
-            filename_hint=(
-                self.search.filename_hint
-                if filename_hint is None
-                else filename_hint
-            ),
+            filename_hint=(self.search.filename_hint if filename_hint is None else filename_hint),
             use_query_as_hint=(
-                self.search.use_query_as_hint
-                if use_query_as_hint is None
-                else use_query_as_hint
+                self.search.use_query_as_hint if use_query_as_hint is None else use_query_as_hint
             ),
         )
 
@@ -213,7 +212,10 @@ class ArchiveFetcher:
                 )
 
                 if not self.config.behavior.quit_after_download:
-                    logger.info("[%s] Keeping IRC session open (quit_after_download=false)", self.net_name)
+                    logger.info(
+                        "[%s] Keeping IRC session open (quit_after_download=false)",
+                        self.net_name,
+                    )
                 return dest
         finally:
             if owns_ident and ident is not None:
@@ -224,7 +226,12 @@ class ArchiveFetcher:
             return list(self.channels)
         return list(self.channels[:1])
 
-    def _idle(self, client: IrcClient, seconds: float, stop_event: threading.Event | None = None) -> None:
+    def _idle(
+        self,
+        client: IrcClient,
+        seconds: float,
+        stop_event: threading.Event | None = None,
+    ) -> None:
         """Keep reading (and PONGing) instead of a blocking sleep."""
         stop_check = stop_event.is_set if stop_event else None
         client.wait_until(
@@ -241,7 +248,10 @@ class ArchiveFetcher:
         password = self.identity.x_password
         service = self.identity.x_service
         if not password or not service:
-            logger.info("[%s] Skipping X LOGIN (no password or service configured)", self.net_name)
+            logger.info(
+                "[%s] Skipping X LOGIN (no password or service configured)",
+                self.net_name,
+            )
             return
         user = self.identity.x_username or client.nick
         logger.info("[%s] Sending X LOGIN to %s as %s", self.net_name, service, user)
@@ -265,7 +275,9 @@ class ArchiveFetcher:
                 logger.info("[%s] Sending search on %s: %s", self.net_name, channel, addressed)
                 client.privmsg(channel, addressed)
 
-    def _await_registered(self, client: IrcClient, stop_event: threading.Event | None = None) -> None:
+    def _await_registered(
+        self, client: IrcClient, stop_event: threading.Event | None = None
+    ) -> None:
         """Wait for welcome/MOTD; rename on 433 nick-in-use."""
         base_nick = client.nick
         deadline = time.monotonic() + self.config.behavior.connect_timeout_sec
@@ -300,7 +312,9 @@ class ArchiveFetcher:
         else:
             logger.info("[%s] Registered as %s", self.net_name, client.nick)
 
-    def _join_channel(self, client: IrcClient, channel: str, stop_event: threading.Event | None = None) -> None:
+    def _join_channel(
+        self, client: IrcClient, channel: str, stop_event: threading.Event | None = None
+    ) -> None:
         """JOIN and wait for confirmation (self-JOIN or 366 end of NAMES)."""
         if not channel.startswith("#"):
             channel = f"#{channel}"
@@ -311,11 +325,12 @@ class ArchiveFetcher:
 
         def joined(line: str) -> bool:
             upper = line.upper()
-            if " JOIN " in upper:
-                if f"JOIN :{chan}" in line.lower() or f"JOIN {chan}" in line.lower():
-                    prefix = line.split("!", 1)[0].lstrip(":").lower()
-                    if prefix == nick or nick in prefix:
-                        return True
+            if " JOIN " in upper and (
+                f"JOIN :{chan}" in line.lower() or f"JOIN {chan}" in line.lower()
+            ):
+                prefix = line.split("!", 1)[0].lstrip(":").lower()
+                if prefix == nick or nick in prefix:
+                    return True
             parts = line.split()
             if len(parts) >= 4 and parts[1] == "366":
                 return parts[3].lower().lstrip(":") == chan
@@ -334,7 +349,11 @@ class ArchiveFetcher:
         if line is None:
             if stop_event and stop_event.is_set():
                 return
-            logger.warning("[%s] No JOIN confirmation for %s; continuing anyway", self.net_name, channel)
+            logger.warning(
+                "[%s] No JOIN confirmation for %s; continuing anyway",
+                self.net_name,
+                channel,
+            )
         else:
             logger.info("[%s] Joined %s", self.net_name, channel)
 
@@ -354,7 +373,10 @@ class ArchiveFetcher:
             if filename_hint:
                 norm_hint = re.sub(r"[\s_.-]+", " ", filename_hint).strip().lower()
                 norm_filename = re.sub(r"[\s_.-]+", " ", offer.filename).strip().lower()
-                if norm_hint not in norm_filename and filename_hint.lower() not in offer.filename.lower():
+                if (
+                    norm_hint not in norm_filename
+                    and filename_hint.lower() not in offer.filename.lower()
+                ):
                     logger.info(
                         "[%s] Skipping DCC offer %s (hint=%r)",
                         self.net_name,
@@ -474,7 +496,7 @@ class MultiNetworkArchiveFetcher:
                         stop_event.set()
             except InterruptedError:
                 logger.info("[%s] Stopped cleanly after sibling completed", net.name)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 with lock:
                     errors[net.name] = exc
                 logger.warning("[%s] Network search failed: %s", net.name, exc)
@@ -573,9 +595,7 @@ def main(argv: list[str] | None = None) -> int:
 
     target_networks = config.networks
     if args.network and args.network.lower() != "all":
-        target_networks = [
-            n for n in config.networks if n.name.lower() == args.network.lower()
-        ]
+        target_networks = [n for n in config.networks if n.name.lower() == args.network.lower()]
         if not target_networks:
             available = ", ".join(n.name for n in config.networks)
             logger.error("Network %r not found. Configured networks: %s", args.network, available)

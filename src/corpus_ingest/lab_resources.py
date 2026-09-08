@@ -37,8 +37,7 @@ def fetch_lab_resource(
         raise ValueError("resource_id must be a non-empty name or ID")
     if not _SAFE_ID.match(rid):
         raise ValueError(
-            "resource_id must be alphanumeric with optional . _ - "
-            f"(got {resource_id!r})"
+            f"resource_id must be alphanumeric with optional . _ - (got {resource_id!r})"
         )
     if "/" in rid or "\\" in rid or ".." in rid:
         raise ValueError(f"resource_id must not contain path separators: {resource_id!r}")
@@ -66,11 +65,7 @@ def fetch_lab_resource(
 
     # Case-insensitive unique substring on name or stem
     needle = rid.lower()
-    fuzzy = [
-        p
-        for p in files
-        if needle in p.name.lower() or needle in p.stem.lower()
-    ]
+    fuzzy = [p for p in files if needle in p.name.lower() or needle in p.stem.lower()]
     if len(fuzzy) == 1:
         return fuzzy[0]
     if len(fuzzy) > 1:
@@ -78,6 +73,4 @@ def fetch_lab_resource(
         raise ValueError(f"ambiguous resource_id {rid!r}: {names}")
 
     available = ", ".join(sorted(p.name for p in files)) or "(none)"
-    raise ValueError(
-        f"unknown lab resource {rid!r}; available: {available}"
-    )
+    raise ValueError(f"unknown lab resource {rid!r}; available: {available}")

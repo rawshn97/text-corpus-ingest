@@ -9,13 +9,11 @@ from corpus_ingest.archive_fetcher import (
     resolve_filename_hint,
     uniquify_nick,
 )
-from corpus_ingest.config import DEFAULT_CONFIG, load_config
+from corpus_ingest.config import load_config
 
 
 def test_format_at_search_default() -> None:
-    assert format_search_command("@search {query}", " frankenstein ") == (
-        "@search frankenstein"
-    )
+    assert format_search_command("@search {query}", " frankenstein ") == ("@search frankenstein")
 
 
 def test_format_raw_query() -> None:
@@ -32,10 +30,7 @@ def test_resolve_hint_empty_for_at_search() -> None:
 
 
 def test_resolve_hint_uses_query_when_enabled() -> None:
-    assert (
-        resolve_filename_hint("Odyssey", filename_hint="", use_query_as_hint=True)
-        == "odyssey"
-    )
+    assert resolve_filename_hint("Odyssey", filename_hint="", use_query_as_hint=True) == "odyssey"
 
 
 def test_resolve_hint_explicit_wins() -> None:

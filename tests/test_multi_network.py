@@ -68,6 +68,7 @@ def test_multi_network_fetcher_stop_on_first() -> None:
     fake_path = Path("/staging/book.epub")
 
     with patch.object(ArchiveFetcher, "fetch") as mock_fetch:
+
         def side_effect(query: str, **kwargs: object) -> Path:
             stop_event = kwargs.get("stop_event")
             if stop_event is not None and hasattr(stop_event, "is_set") and stop_event.is_set():

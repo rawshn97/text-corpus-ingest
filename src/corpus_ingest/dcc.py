@@ -35,6 +35,29 @@ class DccSendOffer:
     raw: str
 
 
+def parse_ip_integer(ip_int: int) -> str:
+    """Convert unsigned 32-bit big-endian integer into dotted IPv4 string."""
+    return socket.inet_ntoa(struct.pack("!I", ip_int & 0xFFFFFFFF))
+
+
+def format_ip_dotted(ip_str: str) -> int:
+    """Convert dotted IPv4 string into unsigned 32-bit integer for DCC offers."""
+    return int(struct.unpack("!I", socket.inet_aton(ip_str))[0])
+
+
+def format_ctcp_dcc_send(
+    filename: str,
+    ip: str,
+    port: int,
+    filesize: int | None = None,
+) -> str:
+    """Format a standard CTCP DCC SEND offer message."""
+    clean_name = f'"{filename}"' if " " in filename else filename
+    ip_int = format_ip_dotted(ip)
+    size_part = f" {filesize}" if filesize is not None else ""
+    return f"\x01DCC SEND {clean_name} {ip_int} {port}{size_part}\x01"
+
+
 def parse_dcc_send(message: str) -> DccSendOffer | None:
     """Extract a DCC SEND offer from a PRIVMSG / NOTICE body."""
     match = _DCC_SEND_RE.search(message)
@@ -51,7 +74,7 @@ def parse_dcc_send(message: str) -> DccSendOffer | None:
         return None
 
     ip_int = int(match.group("ip"))
-    ip = socket.inet_ntoa(struct.pack("!I", ip_int & 0xFFFFFFFF))
+    ip = parse_ip_integer(ip_int)
     port = int(match.group("port"))
     size_raw = match.group("size")
     filesize = int(size_raw) if size_raw is not None else None
@@ -114,7 +137,7 @@ def receive_dcc_send(
                     break
 
     if offer.filesize is not None and received != offer.filesize:
-        raise IOError(
+        raise OSError(
             f"DCC incomplete for {offer.filename}: got {received} of {offer.filesize} bytes"
         )
 

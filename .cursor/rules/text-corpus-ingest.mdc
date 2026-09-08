@@ -1,0 +1,23 @@
+---
+description: Operating rules and standards for Text Corpus Ingest
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Text Corpus Ingest Rules
+
+1. **Protocol and Concurrency**:
+   - Always maintain multi-network concurrency across Undernet (`#bookz`) and IRC Highway (`#ebooks`).
+   - Do not bind TCP 113 multiple times: use the shared `IdentDaemon` instance.
+   - When a specific file download succeeds, use `stop_event` to cleanly cancel sibling networks.
+
+2. **DCC Transfer Safety**:
+   - Never allow directory traversal in DCC offers (`Path(filename).name` sanitization).
+   - Normalize whitespace, underscores, dots, and hyphens when checking `filename_hint`.
+
+3. **No Em Dash**:
+   - Do not use the em dash character (`\u2014`) anywhere in generated code, comments, docs, or messages. Use hyphens, colons, or commas.
+
+4. **Testing and Verification**:
+   - Run `./scripts/test.sh` and `./scripts/lint.sh` before completing tasks.
+   - Keep unit tests network-independent using socket mocks or local loopback servers.

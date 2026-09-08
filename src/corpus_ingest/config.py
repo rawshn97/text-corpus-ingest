@@ -127,7 +127,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     if not isinstance(data, dict):
-        raise ValueError(f"Config root must be a mapping: {path}")
+        raise TypeError(f"Config root must be a mapping: {path}")
     return data
 
 
@@ -151,8 +151,8 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
     root_nick = os.getenv("IRC_NICK") or identity_raw.get("nick") or "YourNick"
     root_password = os.getenv("IRC_SERVER_PASSWORD") or server_raw.get("password")
-    root_x_password = os.getenv("IRC_X_PASSWORD") or os.getenv("IRC_PASSWORD") or identity_raw.get(
-        "x_password"
+    root_x_password = (
+        os.getenv("IRC_X_PASSWORD") or os.getenv("IRC_PASSWORD") or identity_raw.get("x_password")
     )
     root_x_username = os.getenv("IRC_X_USER") or identity_raw.get("x_username") or root_nick
 
@@ -178,9 +178,19 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
             net_nick = str(net_identity_raw.get("nick") or root_nick)
             net_user = str(net_identity_raw.get("username") or net_nick)
-            net_real = str(net_identity_raw.get("realname") or identity_raw.get("realname") or "Example IRC Client")
-            net_uniq = bool(net_identity_raw.get("unique_nick", identity_raw.get("unique_nick", True)))
-            net_x_serv = str(net_identity_raw.get("x_service") if "x_service" in net_identity_raw else identity_raw.get("x_service", "X@channels.undernet.org"))
+            net_real = str(
+                net_identity_raw.get("realname")
+                or identity_raw.get("realname")
+                or "Example IRC Client"
+            )
+            net_uniq = bool(
+                net_identity_raw.get("unique_nick", identity_raw.get("unique_nick", True))
+            )
+            net_x_serv = str(
+                net_identity_raw.get("x_service")
+                if "x_service" in net_identity_raw
+                else identity_raw.get("x_service", "X@channels.undernet.org")
+            )
             net_x_user = net_identity_raw.get("x_username") or root_x_username
             net_x_pass = net_identity_raw.get("x_password") or root_x_password
 
@@ -188,7 +198,11 @@ def load_config(config_path: Path | None = None) -> AppConfig:
                 host=str(net_server_raw.get("host") or "irc.example.net"),
                 port=int(net_server_raw.get("port") or 6667),
                 use_tls=bool(net_server_raw.get("use_tls") or False),
-                password=str(root_password) if root_password else (str(net_server_raw.get("password")) if net_server_raw.get("password") else None),
+                password=str(root_password)
+                if root_password
+                else (
+                    str(net_server_raw.get("password")) if net_server_raw.get("password") else None
+                ),
             )
             net_ident = IdentityConfig(
                 nick=net_nick,
@@ -200,26 +214,53 @@ def load_config(config_path: Path | None = None) -> AppConfig:
                 x_password=str(net_x_pass) if net_x_pass else None,
             )
             net_search = SearchConfig(
-                command_template=str(net_search_raw.get("command_template") or search_raw.get("command_template") or "@search {query}"),
-                filename_hint=str(net_search_raw.get("filename_hint") or search_raw.get("filename_hint") or ""),
-                use_query_as_hint=bool(net_search_raw.get("use_query_as_hint", search_raw.get("use_query_as_hint", False))),
-                offer_timeout_sec=float(net_search_raw.get("offer_timeout_sec") or search_raw.get("offer_timeout_sec") or 180),
-                search_all_channels=bool(net_search_raw.get("search_all_channels", search_raw.get("search_all_channels", False))),
-                post_join_delay_sec=float(net_search_raw.get("post_join_delay_sec") or search_raw.get("post_join_delay_sec") or 8),
+                command_template=str(
+                    net_search_raw.get("command_template")
+                    or search_raw.get("command_template")
+                    or "@search {query}"
+                ),
+                filename_hint=str(
+                    net_search_raw.get("filename_hint") or search_raw.get("filename_hint") or ""
+                ),
+                use_query_as_hint=bool(
+                    net_search_raw.get(
+                        "use_query_as_hint", search_raw.get("use_query_as_hint", False)
+                    )
+                ),
+                offer_timeout_sec=float(
+                    net_search_raw.get("offer_timeout_sec")
+                    or search_raw.get("offer_timeout_sec")
+                    or 180
+                ),
+                search_all_channels=bool(
+                    net_search_raw.get(
+                        "search_all_channels",
+                        search_raw.get("search_all_channels", False),
+                    )
+                ),
+                post_join_delay_sec=float(
+                    net_search_raw.get("post_join_delay_sec")
+                    or search_raw.get("post_join_delay_sec")
+                    or 8
+                ),
                 bots=[str(b) for b in (net_search_raw.get("bots") or search_raw.get("bots") or [])],
             )
-            networks.append(NetworkConfig(
-                name=net_name,
-                server=net_server,
-                channels=net_channels,
-                identity=net_ident,
-                search=net_search,
-            ))
+            networks.append(
+                NetworkConfig(
+                    name=net_name,
+                    server=net_server,
+                    channels=net_channels,
+                    identity=net_ident,
+                    search=net_search,
+                )
+            )
 
     if not networks:
         channels = raw.get("channels") or []
         if not channels:
-            raise ValueError("config must define `networks` or list at least one channel under `channels`")
+            raise ValueError(
+                "config must define `networks` or list at least one channel under `channels`"
+            )
         root_server = ServerConfig(
             host=str(server_raw.get("host") or "irc.example.net"),
             port=int(server_raw.get("port") or 6667),
@@ -244,13 +285,15 @@ def load_config(config_path: Path | None = None) -> AppConfig:
             post_join_delay_sec=float(search_raw.get("post_join_delay_sec") or 8),
             bots=[str(b) for b in (search_raw.get("bots") or [])],
         )
-        networks = [NetworkConfig(
-            name="default",
-            server=root_server,
-            channels=[str(c) for c in channels],
-            identity=root_ident,
-            search=root_search,
-        )]
+        networks = [
+            NetworkConfig(
+                name="default",
+                server=root_server,
+                channels=[str(c) for c in channels],
+                identity=root_ident,
+                search=root_search,
+            )
+        ]
 
     return AppConfig(
         networks=networks,

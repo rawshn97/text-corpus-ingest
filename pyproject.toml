@@ -3,17 +3,45 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "corpus-ingest"
-version = "0.1.0"
-description = "Lab IRC @search + DCC text corpus ingest"
+name = "text-corpus-ingest"
+version = "0.2.0"
+description = "High-performance multi-network IRC search and automated DCC text corpus ingest engine"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Roshan", email = "19824021+ItsRRM97@users.noreply.github.com" }
+]
+keywords = ["irc", "dcc", "ebooks", "corpus", "nlp", "ingest", "undernet", "irchighway"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Communications :: Chat :: Internet Relay Chat",
+  "Topic :: Text Processing :: General",
+]
 dependencies = [
   "PyYAML>=6.0.1",
   "python-dotenv>=1.0.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.10.0",
+  "pytest>=8.0.0",
+  "ruff>=0.8.0",
+  "types-PyYAML>=6.0.12",
+]
+
 [project.scripts]
+corpus-ingest = "corpus_ingest.archive_fetcher:main"
 archive-fetcher = "corpus_ingest.archive_fetcher:main"
 
 [tool.setuptools.packages.find]
@@ -22,3 +50,16 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

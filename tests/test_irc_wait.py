@@ -49,7 +49,7 @@ def test_wait_until_survives_socket_read_timeout() -> None:
     client.connect()
     try:
         line = client.wait_until(
-            lambda l: "001" in l,
+            lambda line_str: "001" in line_str,
             timeout=3.0,
         )
         assert line is not None

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Convert an EPUB file to PDF using headless Google Chrome."""
+"""Convert an EPUB file to styled PDF using headless Google Chrome / Chromium."""
 
 from __future__ import annotations
 
 import argparse
 import base64
+import logging
 import mimetypes
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,12 +17,51 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
-CHROME_BIN = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+logger = logging.getLogger(__name__)
 
 
-def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
+def find_chrome_binary() -> str:
+    """Discover Chrome or Chromium binary across macOS, Linux, or custom environment."""
+    env_bin = os.getenv("CHROME_BIN") or os.getenv("GOOGLE_CHROME_BIN")
+    if env_bin and os.path.isfile(env_bin):
+        return env_bin
+
+    candidates = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+
+    for name in [
+        "google-chrome",
+        "google-chrome-stable",
+        "chromium",
+        "chromium-browser",
+    ]:
+        found = shutil.which(name)
+        if found:
+            return found
+
+    return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+
+def epub_to_pdf(epub_path: Path, pdf_path: Path, chrome_bin: str | None = None) -> Path:
+    """Extract EPUB content, assemble styled HTML, and render to PDF via headless browser."""
     if not epub_path.is_file():
         raise FileNotFoundError(f"EPUB not found: {epub_path}")
+
+    chrome_exec = chrome_bin or find_chrome_binary()
+    if not os.path.isfile(chrome_exec) and not shutil.which(chrome_exec):
+        raise FileNotFoundError(
+            f"Chrome/Chromium binary not found at {chrome_exec}. "
+            f"Set CHROME_BIN environment variable or install Google Chrome."
+        )
 
     with zipfile.ZipFile(epub_path, "r") as zf:
         # 1. Locate rootfile from META-INF/container.xml
@@ -32,18 +73,18 @@ def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
         opf_path = rootfile_elem.attrib["full-path"]
         opf_dir = Path(opf_path).parent
 
-        # 2. Parse OPF manifest & spine
+        # 2. Parse OPF manifest and spine
         opf_data = zf.read(opf_path)
         opf_root = ET.fromstring(opf_data)
 
-        manifest = {}
+        manifest: dict[str, tuple[str, str]] = {}
         for item in opf_root.findall(".//{*}manifest/{*}item"):
             item_id = item.attrib["id"]
             href = item.attrib["href"]
             media_type = item.attrib.get("media-type", "")
             manifest[item_id] = (href, media_type)
 
-        spine_items = []
+        spine_items: list[str] = []
         for itemref in opf_root.findall(".//{*}spine/{*}itemref"):
             idref = itemref.attrib["idref"]
             if idref in manifest:
@@ -59,10 +100,9 @@ def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
         def inline_images(html_text: str, current_dir: Path) -> str:
             def replace_img(match: re.Match[str]) -> str:
                 src = match.group(1)
-                if src.startswith("data:") or src.startswith("http"):
+                if src.startswith(("data:", "http")):
                     return match.group(0)
                 img_rel = (current_dir / src).as_posix()
-                # Normalize relative path components
                 img_rel_parts: list[str] = []
                 for p in img_rel.split("/"):
                     if p == "..":
@@ -83,10 +123,9 @@ def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
             return re.sub(r'src=["\']([^"\']+)["\']', replace_img, html_text)
 
         # 5. Extract and concatenate chapters
-        combined_body_parts = []
+        combined_body_parts: list[str] = []
         for href in spine_items:
             full_item_path = (opf_dir / href).as_posix() if str(opf_dir) != "." else href
-            # Normalize path
             norm_parts: list[str] = []
             for p in full_item_path.split("/"):
                 if p == "..":
@@ -100,23 +139,21 @@ def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
             except KeyError:
                 continue
 
-            html_text = raw_bytes.decode("utf-8", errors="replace")
-            # Inline images
-            html_text = inline_images(html_text, Path(clean_item_path).parent)
+            chapter_html = raw_bytes.decode("utf-8", errors="replace")
+            chapter_html = inline_images(chapter_html, Path(clean_item_path).parent)
 
-            # Extract body contents
-            body_match = re.search(r"<body[^>]*>(.*?)</body>", html_text, re.DOTALL | re.IGNORECASE)
-            if body_match:
-                chapter_html = body_match.group(1)
-            else:
-                chapter_html = html_text
-
-            combined_body_parts.append(
-                f'<section class="chapter">{chapter_html}</section>'
+            body_match = re.search(
+                r"<body[^>]*>(.*?)</body>", chapter_html, re.DOTALL | re.IGNORECASE
             )
+            if body_match:
+                chapter_body = body_match.group(1)
+            else:
+                chapter_body = chapter_html
 
-    # 6. Build combined HTML document with clean styling
-    full_html = f"""<!DOCTYPE html>
+            combined_body_parts.append(f'<section class="chapter">\n{chapter_body}\n</section>')
+
+    # 6. Compose modern styled HTML document
+    styled_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -124,65 +161,153 @@ def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
 <style>
   @page {{
     size: A4;
-    margin: 20mm 15mm 20mm 15mm;
+    margin: 2.2cm 2.0cm 2.2cm 2.0cm;
+    @bottom-center {{
+      content: counter(page);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 9pt;
+      color: #718096;
+    }}
   }}
+
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Georgia, serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Georgia, serif;
     font-size: 11pt;
-    line-height: 1.6;
-    color: #1a1a1a;
-    background: #fff;
+    line-height: 1.68;
+    color: #1a202c;
+    background-color: #ffffff;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
   }}
-  h1, h2, h3, h4 {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    color: #111;
+
+  .cover {{
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 80vh;
+    text-align: center;
+    padding: 2rem;
+  }}
+
+  .cover h1 {{
+    font-size: 28pt;
+    font-weight: 700;
+    color: #2b6cb0;
+    margin-bottom: 0.5rem;
+    line-height: 1.25;
+  }}
+
+  .cover .author {{
+    font-size: 16pt;
+    color: #4a5568;
+    margin-top: 1rem;
+    font-style: italic;
+  }}
+
+  .chapter {{
+    page-break-before: always;
+  }}
+
+  h1, h2, h3, h4, h5, h6 {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #2d3748;
     page-break-after: avoid;
+    break-after: avoid;
   }}
+
   h1 {{
     font-size: 20pt;
-    margin-top: 24pt;
-    margin-bottom: 12pt;
-    text-align: center;
+    margin-top: 2rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.4rem;
   }}
-  h2 {{
-    font-size: 16pt;
-    margin-top: 18pt;
-    margin-bottom: 8pt;
-  }}
+  h2 {{ font-size: 16pt; margin-top: 1.6rem; }}
+  h3 {{ font-size: 13pt; margin-top: 1.2rem; }}
+
   p {{
     margin-top: 0;
-    margin-bottom: 10pt;
+    margin-bottom: 0.85rem;
     text-align: justify;
+    text-justify: inter-word;
+    orphans: 2;
+    widows: 2;
   }}
-  .chapter {{
-    page-break-after: always;
-  }}
-  .chapter:last-child {{
-    page-break-after: auto;
-  }}
+
   img {{
-    max-width: 90%;
+    max-width: 100%;
     height: auto;
     display: block;
-    margin: 12pt auto;
+    margin: 1.5rem auto;
     page-break-inside: avoid;
+  }}
+
+  blockquote {{
+    border-left: 3px solid #cbd5e0;
+    margin: 1rem 0 1rem 1.5rem;
+    padding-left: 1rem;
+    color: #4a5568;
+    font-style: italic;
+  }}
+
+  pre, code {{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 9.5pt;
+    background-color: #edf2f7;
+    border-radius: 3px;
+  }}
+
+  pre {{
+    padding: 1rem;
+    overflow-x: auto;
+    page-break-inside: avoid;
+  }}
+
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    page-break-inside: avoid;
+  }}
+
+  th, td {{
+    border: 1px solid #e2e8f0;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-size: 10pt;
+  }}
+
+  th {{
+    background-color: #f7fafc;
+    font-weight: 600;
   }}
 </style>
 </head>
 <body>
-{chr(10).join(combined_body_parts)}
+
+<div class="cover">
+  <h1>{title}</h1>
+  {f'<div class="author">{author}</div>' if author else ""}
+</div>
+
+{"".join(combined_body_parts)}
+
 </body>
 </html>
 """
 
-    with tempfile.NamedTemporaryFile("w", suffix=".html", encoding="utf-8", delete=False) as tmp_html:
-        tmp_html.write(full_html)
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".html", delete=False, encoding="utf-8"
+    ) as tmp_html:
+        tmp_html.write(styled_html)
         tmp_html_path = tmp_html.name
 
     try:
         pdf_path.parent.mkdir(parents=True, exist_ok=True)
         cmd = [
-            CHROME_BIN,
+            chrome_exec,
             "--headless",
             "--disable-gpu",
             "--no-pdf-header-footer",
@@ -191,7 +316,9 @@ def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
         ]
         res = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if res.returncode != 0 or not pdf_path.exists():
-            raise RuntimeError(f"Chrome PDF generation failed (code {res.returncode}): {res.stderr}")
+            raise RuntimeError(
+                f"Chrome PDF generation failed (code {res.returncode}): {res.stderr}"
+            )
     finally:
         if os.path.exists(tmp_html_path):
             os.remove(tmp_html_path)
@@ -199,16 +326,39 @@ def epub_to_pdf(epub_path: Path, pdf_path: Path) -> Path:
     return pdf_path
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert EPUB to PDF via headless Chrome")
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Convert EPUB to publication-quality PDF via headless Chrome/Chromium"
+    )
     parser.add_argument("epub", type=Path, help="Input EPUB file path")
-    parser.add_argument("-o", "--output", type=Path, default=None, help="Output PDF path")
-    args = parser.parse_args()
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="Output PDF path (default: <stem>.pdf)",
+    )
+    parser.add_argument(
+        "--chrome-bin", default=None, help="Explicit path to Chrome or Chromium binary"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose debug logging")
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(levelname)s: %(message)s",
+    )
 
     out_pdf = args.output or args.epub.with_suffix(".pdf")
-    res_path = epub_to_pdf(args.epub, out_pdf)
+    try:
+        res_path = epub_to_pdf(args.epub, out_pdf, chrome_bin=args.chrome_bin)
+    except (FileNotFoundError, RuntimeError, ValueError, OSError) as exc:
+        logger.error("EPUB to PDF conversion failed: %s", exc)
+        return 1
+
     print(f"Generated PDF: {res_path}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
