@@ -55,7 +55,7 @@ Operating rules for AI agents in `rawshn97/text-corpus-ingest`. Single branch: *
 3. **Ident daemon**: Bind port 113 once per session; do not start conflicting instances across threads.
 4. **Cooperative cancellation**: When downloading a specific book, cancel sibling searches cleanly as soon as the first network finishes.
 5. **No em dash**: Do not use `\u2014` in any markdown, docs, commits, or code strings. Use hyphens or colons.
-6. **Keep repo private**: Do not change visibility to public unless explicitly requested.
+6. **Public open-source repository**: Keep the codebase camera-ready; never commit credentials, local overrides, or personal data.
 
 ## Agent workflow
 
