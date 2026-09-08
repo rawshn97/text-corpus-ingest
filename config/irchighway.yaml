@@ -1,0 +1,43 @@
+# IRC Highway client configuration
+server:
+  host: "irc.irchighway.net"
+  port: 6667
+  use_tls: false
+
+identity:
+  nick: "Rawshn"
+  username: "rawshn"
+  realname: "Corpus Ingest Client"
+  unique_nick: true
+  x_service: ""
+  x_username: ""
+  x_password: ""
+
+channels:
+  - "#ebooks"
+
+search:
+  command_template: "@search {query}"
+  filename_hint: ""
+  use_query_as_hint: false
+  offer_timeout_sec: 180
+  search_all_channels: false
+  post_join_delay_sec: 8
+  bots:
+    - Search
+    - SearchOok
+
+dcc:
+  auto_accept: true
+  auto_resume: false
+  connect_timeout_sec: 30
+
+paths:
+  staging_dir: "staging"
+
+behavior:
+  connect_timeout_sec: 30
+  read_timeout_sec: 60
+  quit_after_download: true
+  nick_retry: 5
+  identd: true

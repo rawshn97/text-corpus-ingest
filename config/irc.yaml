@@ -1,0 +1,89 @@
+# =============================================================================
+# IRC client configuration
+# -----------------------------------------------------------------------------
+# Default configuration searches both Undernet (#bookz) and IRC Highway (#ebooks).
+# Copy to irc.local.yaml for machine-specific overrides (gitignored).
+# =============================================================================
+
+# --- Configured IRC Networks -------------------------------------------------
+networks:
+  - name: "undernet"
+    server:
+      host: "irc.undernet.org"
+      port: 6667
+      use_tls: false
+    channels:
+      - "#bookz"
+    identity:
+      nick: "Rawshn"
+      username: "rawshn"
+      realname: "Example IRC Client"
+      unique_nick: true
+      x_service: "X@channels.undernet.org"
+    search:
+      command_template: "@search {query}"
+      filename_hint: ""
+      use_query_as_hint: false
+      offer_timeout_sec: 180
+      search_all_channels: false
+      post_join_delay_sec: 8
+      bots:
+        - SearchOok
+        - Ook
+        - MusicWench
+
+  - name: "irchighway"
+    server:
+      host: "irc.irchighway.net"
+      port: 6667
+      use_tls: false
+    channels:
+      - "#ebooks"
+    identity:
+      nick: "Rawshn"
+      username: "rawshn"
+      realname: "Example IRC Client"
+      unique_nick: true
+      x_service: ""
+    search:
+      command_template: "@search {query}"
+      filename_hint: ""
+      use_query_as_hint: false
+      offer_timeout_sec: 180
+      search_all_channels: false
+      post_join_delay_sec: 8
+      bots:
+        - Search
+        - SearchOok
+
+# --- Shared DCC (Direct Client-to-Client) settings ---------------------------
+dcc:
+  # When true, automatically accept inbound DCC SEND offers into staging_dir.
+  auto_accept: true
+
+  # When true, resume an interrupted receive if a partial file already exists.
+  auto_resume: false
+
+  # Max seconds to wait while establishing a DCC TCP session.
+  connect_timeout_sec: 30
+
+# --- Shared Paths & session behavior -----------------------------------------
+paths:
+  # Local directory for completed inbound transfers.
+  staging_dir: "staging"
+
+behavior:
+  # Seconds allowed for the initial TCP/TLS connect to each IRC server.
+  connect_timeout_sec: 30
+
+  # Socket read timeout while waiting for IRC traffic.
+  read_timeout_sec: 60
+
+  # Disconnect cleanly after a successful transfer completes.
+  quit_after_download: true
+
+  # How many times to retry NICK when the server reports it is already in use.
+  nick_retry: 5
+
+  # Bind TCP 113 and answer ident if possible.
+  identd: true
